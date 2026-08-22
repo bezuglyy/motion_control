@@ -1,0 +1,12 @@
+{
+  "domain": "motion_control",
+  "name": "Включение по движению",
+  "version": "1.0.1",
+  "documentation": "https://github.com/bezuglyy/motion_control",
+  "issue_tracker": "https://github.com/bezuglyy/motion_control/issues",
+  "requirements": [],
+  "codeowners": [],
+  "iot_class": "local_push",
+  "config_flow": true,
+  "integration_type": "service"
+}
