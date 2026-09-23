@@ -9,8 +9,9 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import ATTR_ENTITY_ID, SERVICE_TURN_OFF, SERVICE_TURN_ON
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.event import async_call_later, async_track_state_change_event, async_track_time_interval
+from homeassistant.util import dt as dt_util
 
-from .config_flow import normalize_entry_payload
+from .config_flow import merge_entry_payload, normalize_entry_payload
 from .const import (
     ATTR_ACTIVE_OFF_SENSORS,
     ATTR_ACTIVE_ON_SENSORS,
@@ -67,9 +68,7 @@ class Runner:
 
     @property
     def cfg(self) -> dict[str, Any]:
-        merged = normalize_entry_payload(self.entry.data)
-        merged.update(normalize_entry_payload(self.entry.options))
-        return merged
+        return merge_entry_payload(self.entry.data, self.entry.options)
 
 
 def _safe_float(value: Any, default: float = 0.0) -> float:
@@ -212,8 +211,7 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    cfg = normalize_entry_payload(entry.data)
-    cfg.update(normalize_entry_payload(entry.options))
+    cfg = merge_entry_payload(entry.data, entry.options)
     ctrl = dict(DEFAULT_CTRL_VALUES)
     ctrl[CTRL_OFF_DELAY_MIN] = cfg.get(CTRL_OFF_DELAY_MIN, DEFAULT_CTRL_VALUES[CTRL_OFF_DELAY_MIN])
     runner = Runner(hass=hass, entry=entry, ctrl=ctrl)
@@ -226,8 +224,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         if cur is None:
             return
         cur.entry = updated_entry
-        merged = normalize_entry_payload(updated_entry.data)
-        merged.update(normalize_entry_payload(updated_entry.options))
+        merged = merge_entry_payload(updated_entry.data, updated_entry.options)
         cur.ctrl[CTRL_OFF_DELAY_MIN] = merged.get(CTRL_OFF_DELAY_MIN, cur.ctrl.get(CTRL_OFF_DELAY_MIN, 1))
         _clear_runtime_subscriptions(cur)
         _install_runtime_subscriptions(cur)
@@ -275,7 +272,7 @@ async def _turn_on_target(runner: Runner, target_entity: str, lux: float, reason
             service_data["hs_color"] = COLOR_HS_MAP[color_name]
     await runner.hass.services.async_call(target_domain, SERVICE_TURN_ON, service_data, blocking=False)
     runner.data[ATTR_LAST_ACTION] = "turn_on"
-    runner.data[ATTR_LAST_ACTION_AT] = datetime.now(runner.hass.config.time_zone).isoformat()
+    runner.data[ATTR_LAST_ACTION_AT] = dt_util.now().isoformat()
     runner.data[ATTR_LAST_REASON] = reason
     runner.data[ATTR_STATUS] = "on"
 
@@ -284,7 +281,7 @@ async def _turn_off_now(runner: Runner, target_entity: str, reason: str) -> None
     target_domain = target_entity.split(".", 1)[0]
     await runner.hass.services.async_call(target_domain, SERVICE_TURN_OFF, {ATTR_ENTITY_ID: target_entity}, blocking=False)
     runner.data[ATTR_LAST_ACTION] = "turn_off"
-    runner.data[ATTR_LAST_ACTION_AT] = datetime.now(runner.hass.config.time_zone).isoformat()
+    runner.data[ATTR_LAST_ACTION_AT] = dt_util.now().isoformat()
     runner.data[ATTR_LAST_REASON] = reason
     runner.data[ATTR_STATUS] = "off"
     runner.data[ATTR_NEXT_OFF_AT] = None
@@ -299,7 +296,7 @@ async def _schedule_or_turn_off(runner: Runner, target_entity: str, immediate: b
         await _turn_off_now(runner, target_entity, reason)
         return
 
-    off_at = datetime.now(runner.hass.config.time_zone) + timedelta(minutes=delay_min)
+    off_at = dt_util.now() + timedelta(minutes=delay_min)
     runner.data[ATTR_NEXT_OFF_AT] = off_at.isoformat()
     runner.data[ATTR_STATUS] = "delayed_off"
     runner.data[ATTR_LAST_REASON] = reason
@@ -339,7 +336,7 @@ async def async_reconcile(hass: HomeAssistant, entry_id: str, reason: str = "man
 
     start_t = _parse_time(runner.ctrl.get(CTRL_START_TIME), dt_time(0, 0, 0))
     end_t = _parse_time(runner.ctrl.get(CTRL_END_TIME), dt_time(23, 59, 59))
-    now_t = datetime.now(hass.config.time_zone).time()
+    now_t = dt_util.now().time()
     in_schedule = _within_schedule(start_t, end_t, now_t)
 
     runner.data[ATTR_LAST_LUX] = lux

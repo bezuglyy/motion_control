@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 from homeassistant.components.sensor import SensorEntity, SensorEntityDescription
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.util import dt as dt_util
 
 from . import get_runner
 from .const import (
@@ -67,4 +68,9 @@ class DiagSensor(SensorEntity):
         runner = get_runner(self.hass, self.entry.entry_id)
         if not runner:
             return None
-        return runner.data.get(self.entity_description.data_key)
+        value = runner.data.get(self.entity_description.data_key)
+        # Сенсоры с device_class=timestamp должны отдавать datetime, а не строку
+        # (иначе HA падает: "'str' object has no attribute 'tzinfo'").
+        if self.entity_description.device_class == "timestamp" and isinstance(value, str):
+            return dt_util.parse_datetime(value)
+        return value

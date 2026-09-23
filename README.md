@@ -35,6 +35,29 @@ Turn devices (lights) on by motion sensor with day/night awareness.
 3. Settings → Devices & Services → Add Integration → **Включение по движению**.
 > HACS: add `https://github.com/bezuglyy/motion_control` as a Custom repository (category Integration).
 ---
+## Изменения 1.0.2 (23.09.2026)
+
+Исправлены 4 дефекта, из-за которых интеграция могла не работать:
+
+1. **Настройки записи терялись.** При пустом `options` данные записи затирались
+   значениями по умолчанию (в диагностике `status = missing_target`, устройство и
+   сенсоры «пропадали») — слияние `data` и `options` переписано.
+2. **Окно настроек (Options) не открывалось** — `AttributeError: property 'config_entry'
+   has no setter` (в Home Assistant 2024.11+ `config_entry` — свойство базового класса).
+3. **Сбои при первом действии** — `datetime.now(hass.config.time_zone)`: в современных
+   версиях HA `time_zone` — строка, теперь используется `dt_util.now()`.
+4. **Диагностические сенсоры времени падали** (`device_class: timestamp` получал строку) —
+   теперь отдаётся корректный `datetime`.
+
+Дополнительно: `AbortFlow` больше не проглатывается общим `except` — повторное добавление
+той же записи корректно отбрасывается. Добавлены HA-тесты (6 проверок).
+
+### Changes 1.0.2
+Fixed 4 defects: entry settings were overwritten by defaults when `options` was empty;
+the options dialog failed to open on Home Assistant 2024.11+; `datetime.now(config.time_zone)`
+raised `TypeError`; timestamp diagnostic sensors crashed. `AbortFlow` is no longer swallowed.
+
+---
 **Автор / Author:**
 ![Bezuglyj E.N.](logo-bezuglyj.png)
 ## License / Лицензия

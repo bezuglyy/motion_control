@@ -4,7 +4,7 @@ import logging
 from typing import Any
 
 import voluptuous as vol
-from homeassistant import config_entries
+from homeassistant import config_entries, data_entry_flow
 from homeassistant.helpers import selector
 
 from .const import (
@@ -104,6 +104,18 @@ def normalize_entry_payload(data: dict | None) -> dict:
     }
 
 
+def merge_entry_payload(data: dict | None, options: dict | None) -> dict:
+    """Слить data и options записи.
+
+    Options применяются только если реально заданы: пустой options не должен
+    затирать data дефолтами (иначе запись «теряет» устройство и сенсоры).
+    """
+    merged = normalize_entry_payload(data)
+    if options:
+        merged.update(normalize_entry_payload(options))
+    return merged
+
+
 def _validate(data: dict) -> dict[str, str]:
     errors: dict[str, str] = {}
     if not data.get(CONF_TARGET_ENTITY):
@@ -171,6 +183,10 @@ class MotionControlConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     self._abort_if_unique_id_configured()
                     return self.async_create_entry(title=cleaned[CONF_NAME], data=cleaned)
                 user_input = cleaned
+            except data_entry_flow.AbortFlow:
+                # AbortFlow — управляющее исключение Home Assistant, его нельзя
+                # глотать общим except (иначе форма просто показывается заново).
+                raise
             except Exception:
                 _LOGGER.exception("Config flow validation failed")
                 errors["base"] = "internal_error"
@@ -178,13 +194,12 @@ class MotionControlConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     @staticmethod
     def async_get_options_flow(config_entry):
-        return MotionControlOptionsFlow(config_entry)
+        return MotionControlOptionsFlow()
 
 
 class MotionControlOptionsFlow(config_entries.OptionsFlow):
-    def __init__(self, config_entry):
-        self.config_entry = config_entry
-
+    # ``config_entry`` — свойство базового класса (HA 2024.11+), задавать его
+    # в __init__ нельзя: у свойства нет сеттера (options flow падал).
     async def async_step_init(self, user_input=None):
         errors = {}
         if user_input is not None:
@@ -205,8 +220,9 @@ class MotionControlOptionsFlow(config_entries.OptionsFlow):
                 _LOGGER.exception("Options flow validation failed")
                 errors["base"] = "internal_error"
 
-        merged = normalize_entry_payload(self.config_entry.data)
-        merged.update(normalize_entry_payload(self.config_entry.options))
+        merged = merge_entry_payload(
+            self.config_entry.data, self.config_entry.options
+        )
         if user_input:
             merged.update(normalize_entry_payload(user_input))
         return self.async_show_form(step_id="init", data_schema=build_schema(merged, include_reset=True), errors=errors)

@@ -1,7 +1,7 @@
 {
   "domain": "motion_control",
   "name": "Включение по движению",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "documentation": "https://github.com/bezuglyy/motion_control",
   "issue_tracker": "https://github.com/bezuglyy/motion_control/issues",
   "requirements": [],
